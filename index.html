@@ -26,8 +26,18 @@
         <span class="stat-label">Automatizáció:</span>
         <span id="auto-level-display" class="stat-value">Szint 0</span>
       </div>
-      <button id="reset-btn" title="Játék újraindítása">Újraindítás</button>
+      <button id="reset-btn" title="Játék újraindítása (Tartsd nyomva 10mp-ig DEV menühöz)">Újraindítás</button>
     </header>
+
+    <!-- Secret DEV / Cheat Panel (Hidden by default) -->
+    <div id="dev-menu-panel" class="dev-panel hidden">
+      <span>DEV / CHEAT MODE:</span>
+      <button class="mult-btn active" data-mult="1">1x</button>
+      <button class="mult-btn" data-mult="2">2x</button>
+      <button class="mult-btn" data-mult="5">5x</button>
+      <button class="mult-btn" data-mult="10">10x</button>
+      <button class="mult-btn" data-mult="100">100x</button>
+    </div>
 
     <!-- Main Content Layout -->
     <main id="main-layout">

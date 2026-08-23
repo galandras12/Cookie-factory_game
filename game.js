@@ -31,7 +31,11 @@ const gameState = {
     flour: { active: false, progress: 0 },
     water: { active: false, progress: 0 },
     chocolate: { active: false, progress: 0 }
-  }
+  },
+
+  // DEV / Cheat Mode state
+  devMode: false,
+  multiplier: 1
 };
 
 // Web Audio API Synthesizer Sound System
@@ -108,6 +112,7 @@ let canvas, ctx;
 let cookiesOnBelt = [];
 let particles = [];
 let beltOffset = 0;
+let resetHoldTimer = null;
 
 window.addEventListener('DOMContentLoaded', () => {
   canvas = document.getElementById('factoryCanvas');
@@ -118,6 +123,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   loadGameSave();
   bindEvents();
+  setupResetHoldListener();
   updateUI();
   requestAnimationFrame(gameLoop);
 
@@ -163,6 +169,14 @@ function bindEvents() {
   // Automation Upgrade Button
   document.getElementById('buy-auto-btn').addEventListener('click', buyAutomationUpgrade);
 
+  // DEV Multiplier Buttons
+  document.querySelectorAll('.mult-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const mult = parseInt(e.target.dataset.mult, 10);
+      setMultiplier(mult);
+    });
+  });
+
   // Canvas Click / Touch
   canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -182,7 +196,56 @@ function bindEvents() {
   });
 
   // Reset Game
-  document.getElementById('reset-btn').addEventListener('click', resetGame);
+  document.getElementById('reset-btn').addEventListener('click', (e) => {
+    // Prevent normal reset if hold timer completed
+    if (e.defaultPrevented) return;
+    resetGame();
+  });
+}
+
+// Secret 10-second hold listener on Reset Button
+function setupResetHoldListener() {
+  const resetBtn = document.getElementById('reset-btn');
+  if (!resetBtn) return;
+
+  const startHold = (e) => {
+    resetHoldTimer = setTimeout(() => {
+      e.preventDefault();
+      activateDevMode();
+    }, 10000); // 10 seconds hold
+  };
+
+  const clearHold = () => {
+    if (resetHoldTimer) {
+      clearTimeout(resetHoldTimer);
+      resetHoldTimer = null;
+    }
+  };
+
+  resetBtn.addEventListener('mousedown', startHold);
+  resetBtn.addEventListener('mouseup', clearHold);
+  resetBtn.addEventListener('mouseleave', clearHold);
+
+  resetBtn.addEventListener('touchstart', startHold);
+  resetBtn.addEventListener('touchend', clearHold);
+}
+
+function activateDevMode() {
+  gameState.devMode = true;
+  gameState.multiplier = 1;
+  // Restart game in DEV mode
+  gameState.money = 1000;
+  gameState.totalCookies = 0;
+  gameState.boxCookies = 0;
+
+  createFloatingText("CHEAT/DEV MENÜ AKTIVÁLVA!", canvas.width / 2, canvas.height / 2, "#f1c40f");
+  updateUI();
+  saveGameSave();
+}
+
+function setMultiplier(mult) {
+  gameState.multiplier = mult;
+  updateUI();
 }
 
 // Cookie Production Logic
@@ -207,12 +270,13 @@ function produceCookie(spawnX, spawnY) {
   water.current -= 1;
   chocolate.current -= 1;
 
-  // Update cookie counters
-  gameState.totalCookies += 1;
-  gameState.boxCookies += 1;
+  // Update cookie counters (multiplier applies in DEV mode for cookie output)
+  const qty = gameState.devMode ? gameState.multiplier : 1;
+  gameState.totalCookies += qty;
+  gameState.boxCookies = Math.min(gameState.boxCapacity, gameState.boxCookies + qty);
 
   // Spawn visual cookie on conveyor
-  const startX = spawnX || 60;
+  const startX = spawnX || 80;
   const startY = spawnY || canvas.height * 0.45;
   cookiesOnBelt.push({
     x: startX,
@@ -235,9 +299,11 @@ function refillIngredient(type) {
   initAudio();
   const ing = gameState.ingredients[type];
   if (ing.current >= ing.max) return;
-  if (gameState.money < ing.refillCost) return;
 
-  gameState.money -= ing.refillCost;
+  const cost = ing.refillCost;
+  if (gameState.money < cost) return;
+
+  gameState.money -= cost;
   ing.current = ing.max;
 
   playSound('refill');
@@ -250,10 +316,13 @@ function refillIngredient(type) {
 function upgradeIngredientCapacity(type) {
   initAudio();
   const ing = gameState.ingredients[type];
-  if (gameState.money < ing.upgradeCost) return;
+  const mult = gameState.devMode ? gameState.multiplier : 1;
+  const cost = ing.upgradeCost;
 
-  gameState.money -= ing.upgradeCost;
-  ing.max *= 2;
+  if (gameState.money < cost) return;
+
+  gameState.money -= cost;
+  ing.max *= (2 * mult);
   ing.upgradeCost *= 2;
 
   playSound('upgrade');
@@ -265,9 +334,10 @@ function upgradeIngredientCapacity(type) {
 // Box & Truck Capacity Upgrades
 function upgradeBoxCapacity() {
   initAudio();
+  const mult = gameState.devMode ? gameState.multiplier : 1;
   if (gameState.money < gameState.boxUpgradeCost) return;
   gameState.money -= gameState.boxUpgradeCost;
-  gameState.boxCapacity *= 2;
+  gameState.boxCapacity *= (2 * mult);
   gameState.boxUpgradeCost *= 2;
   playSound('upgrade');
   createFloatingText("Doboz Tároló Duplázva!", canvas.width * 0.5, canvas.height * 0.3, "#9b59b6");
@@ -277,9 +347,10 @@ function upgradeBoxCapacity() {
 
 function upgradeTruckCapacity() {
   initAudio();
+  const mult = gameState.devMode ? gameState.multiplier : 1;
   if (gameState.money < gameState.truckUpgradeCost) return;
   gameState.money -= gameState.truckUpgradeCost;
-  gameState.truckCapacity *= 2;
+  gameState.truckCapacity *= (2 * mult);
   gameState.truckUpgradeCost *= 2;
   playSound('upgrade');
   createFloatingText("Kamion Kapacitás Duplázva!", canvas.width * 0.7, canvas.height * 0.3, "#9b59b6");
@@ -381,6 +452,24 @@ function updateUI() {
   document.getElementById('box-cookies-display').textContent = `${gameState.boxCookies} / ${gameState.boxCapacity}`;
   document.getElementById('auto-level-display').textContent = `Szint ${gameState.autoLevel}`;
 
+  // DEV Menu visibility
+  const devPanel = document.getElementById('dev-menu-panel');
+  if (devPanel) {
+    if (gameState.devMode) {
+      devPanel.classList.remove('hidden');
+      document.querySelectorAll('.mult-btn').forEach(btn => {
+        const mult = parseInt(btn.dataset.mult, 10);
+        if (mult === gameState.multiplier) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    } else {
+      devPanel.classList.add('hidden');
+    }
+  }
+
   // Update Ingredient Cards
   const types = ['flour', 'water', 'chocolate'];
   types.forEach(type => {
@@ -421,7 +510,7 @@ function updateUI() {
     callTruckBtn.disabled = gameState.boxCookies < 100;
   } else {
     truckStatusText.textContent = `Státusz: ${
-      gameState.truckState === 'arriving' ? 'Tolatás be...' :
+      gameState.truckState === 'arriving' ? 'Behajtás...' :
       gameState.truckState === 'loading' ? 'Bepakolás...' : 'Távozás...'
     }`;
     callTruckBtn.disabled = true; // Disabled while truck is in movement
@@ -580,7 +669,8 @@ function updateGameLogic() {
       gameState.truckState = 'departing';
       gameState.truckProgress = 0;
       // Earn money upon finishing loading
-      const earnings = gameState.cookiesToSell * 1; // $1 per cookie
+      const mult = gameState.devMode ? gameState.multiplier : 1;
+      const earnings = gameState.cookiesToSell * 1 * mult; // $1 per cookie * multiplier
       gameState.money += earnings;
       playSound('sell');
       createFloatingText(`+$${earnings} eladva!`, canvas.width * 0.75, canvas.height * 0.5, "#2ecc71");
@@ -624,21 +714,46 @@ function render() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw Conveyor Belt (Left to Center-Right)
+  // Draw Baking Machine at start of conveyor (Left side)
+  const ovenX = 10;
   const beltY = h * 0.45;
+  const ovenY = beltY - 15;
+  const ovenW = 70;
+  const ovenH = 80;
+
+  ctx.fillStyle = '#7f8c8d';
+  ctx.fillRect(ovenX, ovenY, ovenW, ovenH);
+  ctx.strokeStyle = '#95a5a6';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(ovenX, ovenY, ovenW, ovenH);
+
+  // Oven Door / Window
+  ctx.fillStyle = '#e67e22';
+  ctx.fillRect(ovenX + 15, ovenY + 20, 40, 30);
+  ctx.fillStyle = '#f39c12';
+  ctx.fillRect(ovenX + 20, ovenY + 25, 30, 20);
+
+  // Oven Label
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('SÜTŐ GÉP', ovenX + ovenW/2, ovenY + 12);
+
+  // Draw Conveyor Belt (From Baking Machine to Box)
+  const beltStartX = ovenX + ovenW;
   const beltHeight = 50;
-  const beltWidth = w * 0.55;
+  const beltWidth = w * 0.52 - beltStartX;
 
   ctx.fillStyle = '#34495e';
-  ctx.fillRect(20, beltY, beltWidth, beltHeight);
+  ctx.fillRect(beltStartX, beltY, beltWidth, beltHeight);
   ctx.strokeStyle = '#7f8c8d';
   ctx.lineWidth = 4;
-  ctx.strokeRect(20, beltY, beltWidth, beltHeight);
+  ctx.strokeRect(beltStartX, beltY, beltWidth, beltHeight);
 
   // Belt moving stripes animation
   ctx.strokeStyle = '#2c3e50';
   ctx.lineWidth = 2;
-  for (let x = 20 + (beltOffset % 20); x < 20 + beltWidth; x += 20) {
+  for (let x = beltStartX + (beltOffset % 20); x < beltStartX + beltWidth; x += 20) {
     ctx.beginPath();
     ctx.moveTo(x, beltY);
     ctx.lineTo(x, beltY + beltHeight);
@@ -646,7 +761,7 @@ function render() {
   }
 
   // Draw Box Storage at the end of Conveyor Belt
-  const boxX = 20 + beltWidth + 10;
+  const boxX = beltStartX + beltWidth + 10;
   const boxY = beltY - 10;
   const boxW = 60;
   const boxH = 70;
@@ -666,7 +781,7 @@ function render() {
 
   // Draw Cookies on Belt
   cookiesOnBelt.forEach(c => {
-    const cx = c.x + c.progress * (20 + beltWidth - c.x);
+    const cx = beltStartX + c.progress * (beltWidth - 10);
     const cy = beltY + beltHeight / 2;
 
     ctx.fillStyle = '#e67e22';
@@ -681,7 +796,7 @@ function render() {
     ctx.fill();
   });
 
-  // Render Top-Down Reversing Delivery Truck
+  // Render Top-Down Delivery Truck (Driving Forward)
   renderTruck(dockX + (w - dockX) / 2, h);
 
   // Render Flying Drones
@@ -742,7 +857,6 @@ function renderDrones(w, h) {
     ctx.stroke();
 
     // Rotating Propeller Blades
-    const propAngle = Date.now() * 0.05;
     [[-16,-16], [16,16], [-16,16], [16,-16]].forEach(([px, py]) => {
       ctx.fillStyle = '#bdc3c7';
       ctx.beginPath();
@@ -758,52 +872,50 @@ function renderDrones(w, h) {
   });
 }
 
-// Top-Down Truck Rendering
+// Top-Down Truck Rendering (Driving Forward on Arrival)
 function renderTruck(centerX, canvasHeight) {
   if (gameState.truckState === 'idle') return;
 
   const truckWidth = 60;
   const truckLength = 120;
   const targetY = canvasHeight * 0.45;
-  const startY = -truckLength; // Off-screen top for backing in
+  const startY = -truckLength;
 
   let currentY = startY;
 
   if (gameState.truckState === 'arriving') {
-    // Backing in (reversing from top to target position near box)
+    // Driving forward down into the dock
     currentY = startY + (targetY - startY) * gameState.truckProgress;
   } else if (gameState.truckState === 'loading') {
     currentY = targetY;
   } else if (gameState.truckState === 'departing') {
-    // Driving off downwards
+    // Driving forward off downwards
     currentY = targetY + (canvasHeight + truckLength - targetY) * gameState.truckProgress;
   }
 
   ctx.save();
   ctx.translate(centerX, currentY);
 
-  // Truck Cargo Container (Back of top-down truck)
+  // Truck Cabin (Front facing down in direction of forward travel)
+  ctx.fillStyle = '#e74c3c';
+  ctx.fillRect(-truckWidth / 2 + 5, truckLength / 2 - 25, truckWidth - 10, 25);
+
+  // Cabin Windshield facing down
+  ctx.fillStyle = '#3498db';
+  ctx.fillRect(-truckWidth / 2 + 8, truckLength / 2 - 20, truckWidth - 16, 10);
+
+  // Truck Cargo Container (Behind the cabin)
   ctx.fillStyle = '#ecf0f1';
   ctx.fillRect(-truckWidth / 2, -truckLength / 2, truckWidth, truckLength * 0.7);
   ctx.strokeStyle = '#bdc3c7';
   ctx.lineWidth = 2;
   ctx.strokeRect(-truckWidth / 2, -truckLength / 2, truckWidth, truckLength * 0.7);
 
-  // Truck Cabin (Front facing direction of travel)
-  // When arriving (reversing down), cabin points up/front.
-  ctx.fillStyle = '#e74c3c';
-  ctx.fillRect(-truckWidth / 2 + 5, -truckLength / 2 - 25, truckWidth - 10, 25);
-
-  // Cabin Windshield
-  ctx.fillStyle = '#3498db';
-  ctx.fillRect(-truckWidth / 2 + 8, -truckLength / 2 - 20, truckWidth - 16, 10);
-
-  // Headlights / Reverse Lights
-  if (gameState.truckState === 'arriving') {
-    // White reverse lights at back
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-truckWidth / 2 + 2, truckLength * 0.2, 8, 4);
-    ctx.fillRect(truckWidth / 2 - 10, truckLength * 0.2, 8, 4);
+  // Headlights at front (facing down)
+  if (gameState.truckState === 'arriving' || gameState.truckState === 'departing') {
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillRect(-truckWidth / 2 + 6, truckLength / 2, 8, 4);
+    ctx.fillRect(truckWidth / 2 - 14, truckLength / 2, 8, 4);
   }
 
   // Loading animation visual on truck bed
