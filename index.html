@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sütemény Gyár - Top-Down Cookie Factory</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Top Header / Status Bar -->
+    <header id="status-bar">
+      <div class="stat-box">
+        <span class="stat-label">Pénz:</span>
+        <span id="money-display" class="stat-value">$0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Összes Süti:</span>
+        <span id="total-cookies-display" class="stat-value">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Dobozban:</span>
+        <span id="box-cookies-display" class="stat-value">0 / 100</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Automatizáció:</span>
+        <span id="auto-level-display" class="stat-value">Szint 0</span>
+      </div>
+      <button id="reset-btn" title="Játék újraindítása">Újraindítás</button>
+    </header>
+
+    <!-- Main Content Layout -->
+    <main id="main-layout">
+      <!-- Left Panel: Ingredients & Refill / Storage Expansion -->
+      <aside id="left-panel" class="panel">
+        <h2>Alapanyagok & Raktárak</h2>
+
+        <!-- Flour -->
+        <div class="ingredient-card" id="card-flour">
+          <div class="ingredient-info">
+            <span class="ingredient-title">Liszt</span>
+            <span id="flour-qty" class="ingredient-qty">1000 / 1000</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="flour-bar" class="progress-bar-fill flour-fill" style="width: 100%;"></div>
+          </div>
+          <div class="card-actions">
+            <button id="refill-flour-btn" class="action-btn refill-btn">Újratölt ($100)</button>
+            <button id="upgrade-flour-btn" class="action-btn upgrade-btn">Raktár Duplázás ($200)</button>
+          </div>
+        </div>
+
+        <!-- Water -->
+        <div class="ingredient-card" id="card-water">
+          <div class="ingredient-info">
+            <span class="ingredient-title">Víz</span>
+            <span id="water-qty" class="ingredient-qty">600 / 600</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="water-bar" class="progress-bar-fill water-fill" style="width: 100%;"></div>
+          </div>
+          <div class="card-actions">
+            <button id="refill-water-btn" class="action-btn refill-btn">Újratölt ($10)</button>
+            <button id="upgrade-water-btn" class="action-btn upgrade-btn">Tartály Duplázás ($200)</button>
+          </div>
+        </div>
+
+        <!-- Chocolate -->
+        <div class="ingredient-card" id="card-chocolate">
+          <div class="ingredient-info">
+            <span class="ingredient-title">Csoki</span>
+            <span id="chocolate-qty" class="ingredient-qty">400 / 400</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="chocolate-bar" class="progress-bar-fill chocolate-fill" style="width: 100%;"></div>
+          </div>
+          <div class="card-actions">
+            <button id="refill-chocolate-btn" class="action-btn refill-btn">Újratölt ($50)</button>
+            <button id="upgrade-chocolate-btn" class="action-btn upgrade-btn">Raktár Duplázás ($200)</button>
+          </div>
+        </div>
+
+        <button id="bake-btn-mobile" class="action-btn bake-btn-large">Süti Gyártása (Érintés / Klikk)</button>
+      </aside>
+
+      <!-- Center Panel: Factory Canvas -->
+      <section id="center-panel">
+        <div id="canvas-container">
+          <canvas id="factoryCanvas"></canvas>
+          <div id="click-prompt">Kattints vagy érintsd meg a futószalagot a sütéshez!</div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Box, Truck & Automation Upgrades -->
+      <aside id="right-panel" class="panel">
+        <h2>Fejlesztések & Kamion</h2>
+
+        <!-- Truck Dispatch Section -->
+        <div class="upgrade-card" id="card-truck">
+          <h3>Kamion Szállítás</h3>
+          <p id="truck-status-text">Státusz: Várakozik</p>
+          <button id="call-truck-btn" class="action-btn truck-btn" disabled>Kamion Hívása (Min. 100 süti)</button>
+          <p class="small-note">Eladás: 1$ / süti (ingyenes hívás)</p>
+        </div>
+
+        <!-- Box Storage Capacity -->
+        <div class="upgrade-card">
+          <h3>Doboz Tároló Bővítés</h3>
+          <p>Jelenlegi kapacitás: <span id="box-capacity-text">100</span> süti</p>
+          <button id="upgrade-box-btn" class="action-btn upgrade-btn">Doboz Bővítés ($500)</button>
+        </div>
+
+        <!-- Truck Capacity Upgrade -->
+        <div class="upgrade-card">
+          <h3>Kamion Bővítés</h3>
+          <p>Kamion kapacitás: <span id="truck-capacity-text">100</span> süti</p>
+          <button id="upgrade-truck-btn" class="action-btn upgrade-btn">Kamion Bővítés ($500)</button>
+        </div>
+
+        <!-- Automation Upgrades Section -->
+        <div class="upgrade-card" id="card-automation">
+          <h3>Automatizálás</h3>
+          <p id="auto-desc-text">Automatikus süti gyártás és drónok</p>
+          <button id="buy-auto-btn" class="action-btn auto-btn">Automatizálás Szint 1 ($1000)</button>
+          <ul id="auto-perks-list">
+            <li id="perk-1">Szint 1 ($1000): Auto süti gyártás</li>
+            <li id="perk-2">Szint 2 ($2000): Gyorsabb gyártás</li>
+            <li id="perk-3">Szint 3 ($3000): Max sebességű gyártás</li>
+            <li id="perk-4">Szint 4 ($4000): Drón auto Liszt töltés</li>
+            <li id="perk-5">Szint 5 ($5000): Drón auto Víz töltés</li>
+            <li id="perk-6">Szint 6 ($6000): Drón auto Csoki töltés</li>
+            <li id="perk-7">Szint 7 ($7000): Auto Kamion hívás (100 sütinél)</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
